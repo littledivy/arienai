@@ -1,6 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.117.0/testing/asserts.ts";
 
-const fd = await Deno.open("/dev/pts/0", { read: true, write: true });
+const fd = await Deno.open("/dev/pts/3", { read: true, write: true });
 
 const SIGN = new Uint8Array([0x00]);
 const VERIFY = new Uint8Array([0x01]);
@@ -14,7 +14,9 @@ async function sign(message: Uint8Array): Promise<Uint8Array> {
   let read = 0;
   while (read !== 256) {
     let buf = new Uint8Array(1);
+    
     read += await fd.read(buf) || 0;
+    console.log(buf)
     signature = [...signature, ...buf];
   }
 

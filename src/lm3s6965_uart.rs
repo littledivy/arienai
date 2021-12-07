@@ -1,41 +1,39 @@
+use core::mem::MaybeUninit;
 use volatile_register::RO;
 use volatile_register::RW;
 use volatile_register::WO;
 
+// Refer https://www.ti.com/lit/ds/symlink/lm3s6965.pdf
 #[repr(C)]
 pub struct UART {
-  /// Data register
+  /// UART Data (offset: 0x000)
   dr: RW<u32>,
-  /// Receive status register
+  /// UART recieve status (offset: 0x004)
   rsr: RW<u32>,
-  /// A reserved region with no explicit use
-  reserved1: [u8; 16],
-  /// Flag register
+  reserved1: MaybeUninit<[u8; 16]>,
+  /// UART flag (offset: 0x018)
   fr: RO<u32>,
-  /// A reserved region with no explicit use
-  reserved2: [u8; 4],
+  reserved2: MaybeUninit<[u8; 4]>,
   /// UART IrDA low-power register
   ilpr: RW<u32>,
-  /// Integer baud rate divisor register
+  /// Integer baud-rate divisor register
   ibrd: RW<u32>,
-  /// Fractional baud rate divisor register
+  /// Fractional baud-rate divisor register
   fbrd: RW<u32>,
   /// UART line control
   lcrh: RW<u32>,
-  /// Control register
+  /// UART Control
   ctl: RW<u32>,
-  /// Interrupt FIFO level select register
+  /// UART Interrupt FIFO level select
   ifls: RW<u32>,
-  /// Interrupt mask set/clear register
+  /// UART Interrupt mask
   im: RW<u32>,
-  /// Raw interrupt status register
+  /// UART Raw interrupt status
   ris: RO<u32>,
-  /// Masked interrupt status register
+  /// UART Masked interrupt status
   mis: RO<u32>,
-  /// Interrupt clear register
+  /// UART Interrupt clear
   icr: WO<u32>,
-  /// UART DMA control
-  dmactl: RW<u32>,
 }
 
 pub unsafe fn init() -> &'static mut UART {

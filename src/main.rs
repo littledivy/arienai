@@ -4,10 +4,30 @@
 
 extern crate alloc;
 
-use panic_itm as _;
+use panic_halt as _;
 
 mod heap;
+
+#[cfg(feature = "lm3s6965")]
 mod lm3s6965_uart;
+#[cfg(feature = "lm3s6965")]
+use lm3s6965_uart as uart;
+
+#[cfg(feature = "stm32_discovery")]
+mod stm32discovery_uart;
+#[cfg(feature = "stm32_discovery")]
+use stm32discovery_uart as uart;
+
+#[cfg(feature = "stm32p103")]
+mod stm32p103_uart;
+#[cfg(feature = "stm32p103")]
+use stm32p103_uart as uart;
+
+#[cfg(feature = "stm32f1xx")]
+mod stm32f1xx_uart;
+#[cfg(feature = "stm32f1xx")]
+use stm32f1xx_uart as uart;
+
 mod msg;
 
 use cortex_m::asm;
@@ -59,16 +79,16 @@ jg/3747WSsf/zBTcHihTRBdAv6OmdhV4/dD5YBfLAkLrd+mX7iE=
 #[entry]
 fn main() -> ! {
   heap::init();
-
   let signing_key = RsaPrivateKey::from_pkcs1_pem(RSA_PRIVATE_KEY)
     .expect("Invalid private key");
 
+  
   unsafe {
-    let uart = lm3s6965_uart::init();
 
+    let mut uart = uart::init();
     loop {
       let byte = uart.read_byte();
-
+   
       match Message::try_from(byte) {
         Ok(Message::Sign) => {
           let mut digest = [0u8; 256 / 8];
