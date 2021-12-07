@@ -6,17 +6,15 @@ extern crate alloc;
 
 use panic_itm as _;
 
-use alloc_cortex_m::CortexMHeap;
+mod heap;
+mod lm3s6965_uart;
+
 use cortex_m::asm;
 use cortex_m_rt::entry;
 use cortex_m_semihosting::hprintln;
 use rand_core::SeedableRng;
 use rand_hc::Hc128Rng;
-use volatile_register::RO;
-use volatile_register::RW;
-use volatile_register::WO;
 
-use alloc::vec;
 use core::alloc::Layout;
 
 use rsa::pkcs1::FromRsaPrivateKey;
@@ -24,12 +22,6 @@ use rsa::PaddingScheme;
 use rsa::PublicKey;
 use rsa::RsaPrivateKey;
 use sha2::Sha256;
-
-#[global_allocator]
-static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
-
-// 64 Kib
-const HEAP_SIZE: usize = 1024 * 64;
 
 // TODO: Avoid runtime decoding using comtime macros.
 // XXX: Replace with your private key.
@@ -61,107 +53,48 @@ y18Ae9n7dHVueyslrb6weq7dTkYDi3iOYRW8HRkIQh06wEdbxt0shTzAJvvCQfrB
 jg/3747WSsf/zBTcHihTRBdAv6OmdhV4/dD5YBfLAkLrd+mX7iE=
 -----END RSA PRIVATE KEY-----";
 
-#[repr(C)]
-struct UART {
-  /// Data register
-  dr: RW<u32>,
-  /// Receive status register
-  rsr: RW<u32>,
-  /// A reserved region with no explicit use
-  reserved1: [u8; 16],
-  /// Flag register
-  fr: RO<u32>,
-  /// A reserved region with no explicit use
-  reserved2: [u8; 4],
-  /// UART IrDA low-power register
-  ilpr: RW<u32>,
-  /// Integer baud rate divisor register
-  ibrd: RW<u32>,
-  /// Fractional baud rate divisor register
-  fbrd: RW<u32>,
-  /// UART line control
-  lcrh: RW<u32>,
-  /// Control register
-  ctl: RW<u32>,
-  /// Interrupt FIFO level select register
-  ifls: RW<u32>,
-  /// Interrupt mask set/clear register
-  im: RW<u32>,
-  /// Raw interrupt status register
-  ris: RO<u32>,
-  /// Masked interrupt status register
-  mis: RO<u32>,
-  /// Interrupt clear register
-  icr: WO<u32>,
-  /// UART DMA control
-  dmactl: RW<u32>,
-}
-
 #[entry]
 fn main() -> ! {
-  unsafe { ALLOCATOR.init(cortex_m_rt::heap_start() as usize, HEAP_SIZE) }
+  heap::init();
 
   let signing_key = RsaPrivateKey::from_pkcs1_pem(RSA_PRIVATE_KEY)
     .expect("Invalid private key");
 
   unsafe {
-    let uart = &mut *(0x4000C000 as usize as *mut UART);
-    uart.ctl.write(uart.ctl.read() & 0xffff_fffe);
-    uart.ibrd.write((uart.ibrd.read() & 0xffff_0000) | 0x000a);
-    uart.fbrd.write((uart.fbrd.read() & 0xffff_0000) | 0x0036);
-    uart.lcrh.write(0x60);
-    uart.ctl.write(uart.ctl.read() | 0x01);
+    let uart = lm3s6965_uart::init();
 
     loop {
-      let byte = uart.dr.read() as u8;
+      let byte = uart.read_byte();
 
       if byte == b's' {
         let mut digest = [0u8; 256 / 8];
+        uart.read(&mut digest);
 
-        for b in digest.iter_mut() {
-          while !(uart.fr.read() & 0x10 == 0) {}
-          if uart.fr.read() & 0x10 == 0 {
-            *b = uart.dr.read() as u8;
-          }
-        }
-
-        let mut rng = Hc128Rng::from_seed([0; 32]);
+        let rng = Hc128Rng::from_seed([0; 32]);
         let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
 
         // 256 bytes
         let signature = signing_key.sign(padding, &digest).unwrap();
 
         for b in signature {
-          unsafe {
-            uart.dr.write(b.into());
-          }
+          uart.write(b);
         }
       }
 
       if byte == b'v' {
         let mut digest = [0u8; 256 / 8];
+        uart.read(&mut digest);
+
         let mut signature = [0u8; 256];
-        for b in digest.iter_mut() {
-          while !(uart.fr.read() & 0x10 == 0) {}
-          if uart.fr.read() & 0x10 == 0 {
-            *b = uart.dr.read() as u8;
-          }
-        }
+        uart.read(&mut signature);
 
-        for b in signature.iter_mut() {
-          while !(uart.fr.read() & 0x10 == 0) {}
-          if uart.fr.read() & 0x10 == 0 {
-            *b = uart.dr.read() as u8;
-          }
-        }
-
-        let mut rng = Hc128Rng::from_seed([0; 32]);
+        let rng = Hc128Rng::from_seed([0; 32]);
         let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
 
         let verification =
           signing_key.verify(padding, &digest, &signature).is_ok();
 
-        uart.dr.write(if verification { 1 } else { 0 });
+        uart.write(if verification { 1 } else { 0 });
       }
     }
   }
