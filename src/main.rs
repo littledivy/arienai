@@ -8,6 +8,7 @@ use panic_itm as _;
 
 mod heap;
 mod lm3s6965_uart;
+mod msg;
 
 use cortex_m::asm;
 use cortex_m_rt::entry;
@@ -16,7 +17,9 @@ use rand_core::SeedableRng;
 use rand_hc::Hc128Rng;
 
 use core::alloc::Layout;
+use core::convert::TryFrom;
 
+use msg::Message;
 use rsa::pkcs1::FromRsaPrivateKey;
 use rsa::PaddingScheme;
 use rsa::PublicKey;
@@ -66,35 +69,39 @@ fn main() -> ! {
     loop {
       let byte = uart.read_byte();
 
-      if byte == b's' {
-        let mut digest = [0u8; 256 / 8];
-        uart.read(&mut digest);
+      match Message::try_from(byte) {
+        Ok(Message::Sign) => {
+          let mut digest = [0u8; 256 / 8];
+          uart.read(&mut digest);
 
-        let rng = Hc128Rng::from_seed([0; 32]);
-        let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
+          let rng = Hc128Rng::from_seed([0; 32]);
+          let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
 
-        // 256 bytes
-        let signature = signing_key.sign(padding, &digest).unwrap();
+          // 256 bytes
+          let signature = signing_key.sign(padding, &digest).unwrap();
 
-        for b in signature {
-          uart.write(b);
+          for b in signature {
+            uart.write(b);
+          }
         }
-      }
+        Ok(Message::Verify) => {
+          let mut digest = [0u8; 256 / 8];
+          uart.read(&mut digest);
 
-      if byte == b'v' {
-        let mut digest = [0u8; 256 / 8];
-        uart.read(&mut digest);
+          let mut signature = [0u8; 256];
+          uart.read(&mut signature);
 
-        let mut signature = [0u8; 256];
-        uart.read(&mut signature);
+          let rng = Hc128Rng::from_seed([0; 32]);
+          let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
 
-        let rng = Hc128Rng::from_seed([0; 32]);
-        let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
+          let verification =
+            signing_key.verify(padding, &digest, &signature).is_ok();
 
-        let verification =
-          signing_key.verify(padding, &digest, &signature).is_ok();
-
-        uart.write(if verification { 1 } else { 0 });
+          uart.write(if verification { 1 } else { 0 });
+        }
+        Ok(Message::GetAddress) => {}
+        Ok(Message::GetOwner) => {}
+        Err(_) => {}
       }
     }
   }

@@ -1,9 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.117.0/testing/asserts.ts";
 
-const fd = await Deno.open("/dev/pts/2", { read: true, write: true });
+const fd = await Deno.open("/dev/pts/0", { read: true, write: true });
 
-const SIGN = new Uint8Array([115]);
-const VERIFY = new Uint8Array([118]);
+const SIGN = new Uint8Array([0x00]);
+const VERIFY = new Uint8Array([0x01]);
 
 async function sign(message: Uint8Array): Promise<Uint8Array> {
   const hashed = await crypto.subtle.digest("SHA-256", message);
