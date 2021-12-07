@@ -2,7 +2,7 @@
 authors = ["Divy Srivastava <dj.srivastava23@gmail.com>"]
 edition = "2018"
 readme = "README.md"
-name = "saifu"
+name = "arienai"
 version = "0.1.0"
 resolver = "2"
 
@@ -28,7 +28,7 @@ default-features = false
 features = ["alloc", "pem"]
 
 [[bin]]
-name = "saifu"
+name = "arienai"
 test = false
 bench = false
 
