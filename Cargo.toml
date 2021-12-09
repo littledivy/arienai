@@ -7,15 +7,25 @@ version = "0.1.0"
 resolver = "2"
 
 [dependencies]
-cortex-m = "0.6.0"
-cortex-m-rt = "0.6.10"
-cortex-m-semihosting = "0.3.3"
+gd32vf103xx-hal = "0.5.0"
+riscv-rt = "0.8.0"
+riscv = "0.7.0"
+longan-nano = "0.3.0"
 panic-halt = "0.2.0"
-panic-itm = "0.4.2"
-alloc-cortex-m = "0.4.0"
 volatile-register = "0.2.1"
 rand_hc = "0.3.1"
 rand_core = "0.6.3"
+linked_list_allocator = "0.9.1"
+nb = "*"
+
+[dependencies.num-bigint]
+package = "num-bigint-dig"
+default-features = false
+version = "^0.7"
+
+[dependencies.rand]
+version = "0.8.4"
+default-features = false
 
 [dependencies.sha2]
 version = "0.9.8"
@@ -33,6 +43,7 @@ test = false
 bench = false
 
 [profile.release]
+opt-level = "z"
 codegen-units = 1
 debug = true
 lto = true

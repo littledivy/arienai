@@ -4,15 +4,17 @@
 
 extern crate alloc;
 
-use panic_itm as _;
+use panic_halt as _;
 
 mod heap;
-mod lm3s6965_uart;
 mod msg;
+mod rsa;
+mod uart;
 
-use cortex_m::asm;
-use cortex_m_rt::entry;
-use cortex_m_semihosting::hprintln;
+use riscv::asm;
+use riscv_rt::entry;
+
+use rand::Rng;
 use rand_core::SeedableRng;
 use rand_hc::Hc128Rng;
 
@@ -20,51 +22,18 @@ use core::alloc::Layout;
 use core::convert::TryFrom;
 
 use msg::Message;
-use rsa::pkcs1::FromRsaPrivateKey;
-use rsa::PaddingScheme;
-use rsa::PublicKey;
-use rsa::RsaPrivateKey;
+use sha2::Digest;
 use sha2::Sha256;
-
-// TODO: Avoid runtime decoding using comtime macros.
-// XXX: Replace with your private key.
-const RSA_PRIVATE_KEY: &str = r"-----BEGIN RSA PRIVATE KEY-----
-MIIEogIBAAKCAQEAnzyis1ZjfNB0bBgKFMSvvkTtwlvBsaJq7S5wA+kzeVOVpVWw
-kWdVha4s38XM/pa/yr47av7+z3VTmvDRyAHcaT92whREFpLv9cj5lTeJSibyr/Mr
-m/YtjCZVWgaOYIhwrXwKLqPr/11inWsAkfIytvHWTxZYEcXLgAXFuUuaS3uF9gEi
-NQwzGTU1v0FqkqTBr4B8nW3HCN47XUu0t8Y0e+lf4s4OxQawWD79J9/5d3Ry0vbV
-3Am1FtGJiJvOwRsIfVChDpYStTcHTCMqtvWbV6L11BWkpzGXSW4Hv43qa+GSYOD2
-QU68Mb59oSk2OB+BtOLpJofmbGEGgvmwyCI9MwIDAQABAoIBACiARq2wkltjtcjs
-kFvZ7w1JAORHbEufEO1Eu27zOIlqbgyAcAl7q+/1bip4Z/x1IVES84/yTaM8p0go
-amMhvgry/mS8vNi1BN2SAZEnb/7xSxbflb70bX9RHLJqKnp5GZe2jexw+wyXlwaM
-+bclUCrh9e1ltH7IvUrRrQnFJfh+is1fRon9Co9Li0GwoN0x0byrrngU8Ak3Y6D9
-D8GjQA4Elm94ST3izJv8iCOLSDBmzsPsXfcCUZfmTfZ5DbUDMbMxRnSo3nQeoKGC
-0Lj9FkWcfmLcpGlSXTO+Ww1L7EGq+PT3NtRae1FZPwjddQ1/4V905kyQFLamAA5Y
-lSpE2wkCgYEAy1OPLQcZt4NQnQzPz2SBJqQN2P5u3vXl+zNVKP8w4eBv0vWuJJF+
-hkGNnSxXQrTkvDOIUddSKOzHHgSg4nY6K02ecyT0PPm/UZvtRpWrnBjcEVtHEJNp
-bU9pLD5iZ0J9sbzPU/LxPmuAP2Bs8JmTn6aFRspFrP7W0s1Nmk2jsm0CgYEAyH0X
-+jpoqxj4efZfkUrg5GbSEhf+dZglf0tTOA5bVg8IYwtmNk/pniLG/zI7c+GlTc9B
-BwfMr59EzBq/eFMI7+LgXaVUsM/sS4Ry+yeK6SJx/otIMWtDfqxsLD8CPMCRvecC
-2Pip4uSgrl0MOebl9XKp57GoaUWRWRHqwV4Y6h8CgYAZhI4mh4qZtnhKjY4TKDjx
-QYufXSdLAi9v3FxmvchDwOgn4L+PRVdMwDNms2bsL0m5uPn104EzM6w1vzz1zwKz
-5pTpPI0OjgWN13Tq8+PKvm/4Ga2MjgOgPWQkslulO/oMcXbPwWC3hcRdr9tcQtn9
-Imf9n2spL/6EDFId+Hp/7QKBgAqlWdiXsWckdE1Fn91/NGHsc8syKvjjk1onDcw0
-NvVi5vcba9oGdElJX3e9mxqUKMrw7msJJv1MX8LWyMQC5L6YNYHDfbPF1q5L4i8j
-8mRex97UVokJQRRA452V2vCO6S5ETgpnad36de3MUxHgCOX3qL382Qx9/THVmbma
-3YfRAoGAUxL/Eu5yvMK8SAt/dJK6FedngcM3JEFNplmtLYVLWhkIlNRGDwkg3I5K
-y18Ae9n7dHVueyslrb6weq7dTkYDi3iOYRW8HRkIQh06wEdbxt0shTzAJvvCQfrB
-jg/3747WSsf/zBTcHihTRBdAv6OmdhV4/dD5YBfLAkLrd+mX7iE=
------END RSA PRIVATE KEY-----";
 
 #[entry]
 fn main() -> ! {
   heap::init();
-
-  let signing_key = RsaPrivateKey::from_pkcs1_pem(RSA_PRIVATE_KEY)
-    .expect("Invalid private key");
+  // XXX: Replace with your private key.
+  let n = num_bigint::BigUint::parse_bytes(b"009f3ca2b356637cd0746c180a14c4afbe44edc25bc1b1a26aed2e7003e933795395a555b091675585ae2cdfc5ccfe96bfcabe3b6afefecf75539af0d1c801dc693f76c214441692eff5c8f99537894a26f2aff32b9bf62d8c26555a068e608870ad7c0a2ea3ebff5d629d6b0091f232b6f1d64f165811c5cb8005c5b94b9a4b7b85f60122350c33193535bf416a92a4c1af807c9d6dc708de3b5d4bb4b7c6347be95fe2ce0ec506b0583efd27dff9777472d2f6d5dc09b516d189889bcec11b087d50a10e9612b537074c232ab6f59b57a2f5d415a4a73197496e07bf8dea6be19260e0f6414ebc31be7da12936381f81b4e2e92687e66c610682f9b0c8223d33", 16).unwrap();
+  let d = num_bigint::BigUint::parse_bytes(b"288046adb0925b63b5c8ec905bd9ef0d4900e4476c4b9f10ed44bb6ef338896a6e0c8070097babeff56e2a7867fc75215112f38ff24da33ca748286a6321be0af2fe64bcbcd8b504dd920191276ffef14b16df95bef46d7f511cb26a2a7a791997b68dec70fb0c9797068cf9b725502ae1f5ed65b47ec8bd4ad1ad09c525f87e8acd5f4689fd0a8f4b8b41b0a0dd31d1bcabae7814f0093763a0fd0fc1a3400e04966f78493de2cc9bfc88238b483066cec3ec5df7025197e64df6790db50331b3314674a8de741ea0a182d0b8fd16459c7e62dca469525d33be5b0d4bec41aaf8f4f736d45a7b51593f08dd750d7fe15f74e64c9014b6a6000e58952a44db09", 16).unwrap();
 
   unsafe {
-    let uart = lm3s6965_uart::init();
+    let mut uart = uart::init();
 
     loop {
       let byte = uart.read_byte();
@@ -74,30 +43,42 @@ fn main() -> ! {
           let mut digest = [0u8; 256 / 8];
           uart.read(&mut digest);
 
-          let rng = Hc128Rng::from_seed([0; 32]);
-          let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
+          let mut rng = Hc128Rng::from_seed([0; 32]);
+          // let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
+          let mut sha256 = Sha256::new();
+
+          let mut salt = [0u8; 32];
+          rng.fill(&mut salt[..]);
 
           // 256 bytes
-          let signature = signing_key.sign(padding, &digest).unwrap();
+          let signature = rsa::sign_pss_with_salt(
+            &digest,
+            &salt,
+            &mut sha256,
+            &n,
+            &d,
+            n.bits() as usize,
+          )
+          .unwrap();
 
           for b in signature {
             uart.write(b);
           }
         }
         Ok(Message::Verify) => {
-          let mut digest = [0u8; 256 / 8];
-          uart.read(&mut digest);
+          // let mut digest = [0u8; 256 / 8];
+          // uart.read(&mut digest);
 
-          let mut signature = [0u8; 256];
-          uart.read(&mut signature);
+          // let mut signature = [0u8; 256];
+          // uart.read(&mut signature);
 
-          let rng = Hc128Rng::from_seed([0; 32]);
-          let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
+          // let rng = Hc128Rng::from_seed([0; 32]);
+          // let padding = PaddingScheme::new_pss_with_salt::<Sha256, _>(rng, 32);
 
-          let verification =
-            signing_key.verify(padding, &digest, &signature).is_ok();
+          // let verification =
+          //   signing_key.verify(padding, &digest, &signature).is_ok();
 
-          uart.write(if verification { 1 } else { 0 });
+          // uart.write(if verification { 1 } else { 0 });
         }
         Ok(Message::GetAddress) => {}
         Ok(Message::GetOwner) => {}
@@ -109,8 +90,5 @@ fn main() -> ! {
 
 #[alloc_error_handler]
 fn alloc_error(_layout: Layout) -> ! {
-  hprintln!("{}", "Out of memory.").unwrap();
-  asm::bkpt();
-
   loop {}
 }

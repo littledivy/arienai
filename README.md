@@ -1,4 +1,4 @@
- Hardware wallet for Arweave. For Cortex M3 processors.
+ Hardware wallet for Arweave.
 
 Supports key storage, signing and verifying RSA signatures.
 
@@ -7,19 +7,13 @@ Supports key storage, signing and verifying RSA signatures.
 ## Building
 
 ```bash
-$ rustup target add thumbv7m-none-eabi
-$ sudo apt install qemu-system-arm
+$ rustup target add riscv32imac-unknown-none-elf
 
-# `cargo run` starts QEMU emulation for lm3s6965evb
-# QEMU redirects serial communication to a `/dev/pts/` device.
-$ cargo run --release
-# Run the test runner with Deno.
-$ deno run --allow-read --allow-write test_runner.ts
 ```
 
 ## Supported microcontrollers
 
-- lm3s6965 (Tested on lm3s6965evb QEMU)
+- GD32VF103
 
 ## License
 
