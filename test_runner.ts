@@ -1,6 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.117.0/testing/asserts.ts";
 
-const fd = await Deno.open("/dev/pts/3", { read: true, write: true });
+const fd = await Deno.open("/dev/pts/1", { read: true, write: true });
 
 const SIGN = new Uint8Array([0x00]);
 const VERIFY = new Uint8Array([0x01]);

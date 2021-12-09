@@ -1,6 +1,6 @@
 [target.thumbv7m-none-eabi]
-# runner = "sudo qemu-system-arm -cpu cortex-m3 -serial pty -machine lm3s6965evb -semihosting-config enable=on,target=native -kernel"
-runner = "sudo qemu_stm32/arm-softmmu/qemu-system-arm -cpu cortex-m3 -serial pty -machine stm32-f103c8 -kernel"
+runner = "sudo qemu-system-arm -serial pty -cpu cortex-m3 -machine netduino2 -semihosting-config enable=on,target=native -kernel"
+# runner = "sudo qemu_stm32/arm-softmmu/qemu-system-arm -cpu cortex-m3 -serial stdio -machine stm32-f103c8 -kernel"
 
 rustflags = [
   "-C", "link-arg=--nmagic",

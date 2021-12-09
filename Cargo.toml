@@ -23,6 +23,7 @@ alloc-cortex-m = "0.4.0"
 volatile-register = "0.2.1"
 rand_hc = "0.3.1"
 rand_core = "0.6.3"
+nb = "1.0.0"
 
 [dependencies.stm32f1xx-hal]
 git = "https://github.com/stm32-rs/stm32f1xx-hal"

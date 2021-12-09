@@ -4,6 +4,7 @@ use stm32f1xx_hal::serial::Config;
 use stm32f1xx_hal::serial::Pins;
 use stm32f1xx_hal::serial::Serial;
 
+use nb::block;
 use stm32f1xx_hal::gpio::gpiob::PB10;
 use stm32f1xx_hal::gpio::gpiob::PB11;
 use stm32f1xx_hal::gpio::Alternate;
@@ -39,7 +40,7 @@ pub fn init() -> UART {
 
 impl UART {
   pub unsafe fn read_byte(&mut self) -> u8 {
-    self.serial.read().unwrap()
+    block!(self.serial.read()).unwrap()
   }
 
   pub unsafe fn read(&mut self, buf: &mut [u8]) {
@@ -47,6 +48,6 @@ impl UART {
   }
 
   pub unsafe fn write(&mut self, byte: u8) {
-    self.serial.write(byte);
+    block!(self.serial.write(byte)).unwrap();
   }
 }

@@ -84,11 +84,12 @@ fn main() -> ! {
 
   
   unsafe {
-
     let mut uart = uart::init();
+    uart.write(b'A');
+    hprintln!("{}", "Write").unwrap();
     loop {
       let byte = uart.read_byte();
-   
+      
       match Message::try_from(byte) {
         Ok(Message::Sign) => {
           let mut digest = [0u8; 256 / 8];
