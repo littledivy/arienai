@@ -56,8 +56,8 @@ unsafe impl GlobalAlloc for RISCVHeap {
   }
 }
 
-// 16 Kib
-const HEAP_SIZE: usize = 1024 * 16;
+// 32 Kib
+const HEAP_SIZE: usize = 1024 * 32;
 
 #[global_allocator]
 static ALLOCATOR: RISCVHeap = RISCVHeap::empty();

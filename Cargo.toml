@@ -10,32 +10,24 @@ resolver = "2"
 gd32vf103xx-hal = "0.5.0"
 riscv-rt = "0.8.0"
 riscv = "0.7.0"
-longan-nano = "0.3.0"
+longan-nano = { version = "0.3.0", features = ["lcd"] }
 panic-halt = "0.2.0"
 volatile-register = "0.2.1"
 rand_hc = "0.3.1"
 rand_core = "0.6.3"
 linked_list_allocator = "0.9.1"
 nb = "*"
+embedded-graphics = "0.7.1"
+sha2-const = "0.1.2"
 
-[dependencies.num-bigint]
-package = "num-bigint-dig"
+[dependencies.crypto-bigint]
+version = "0.3.2"
 default-features = false
-version = "^0.7"
+features = ["generic-array"]
 
 [dependencies.rand]
 version = "0.8.4"
 default-features = false
-
-[dependencies.sha2]
-version = "0.9.8"
-default-features = false
-
-[dependencies.rsa]
-git = "https://github.com/RustCrypto/RSA"
-rev = "3b7ee86"
-default-features = false
-features = ["alloc", "pem"]
 
 [[bin]]
 name = "arienai"

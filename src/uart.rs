@@ -13,8 +13,8 @@ use longan_nano::hal::{pac, prelude::*};
 use nb::block;
 
 pub struct UART {
-  tx: Tx<USART0>,
-  rx: Rx<USART0>,
+  pub tx: Tx<USART0>,
+  pub rx: Rx<USART0>,
 }
 
 pub fn init() -> UART {
@@ -48,13 +48,17 @@ pub fn init() -> UART {
 }
 
 impl UART {
-  pub unsafe fn read_byte(&mut self) -> u8 {
-    block!(self.rx.read()).unwrap()
+  pub unsafe fn read_byte(&mut self) -> Option<u8> {
+    self.rx.read().ok()
   }
 
-  pub unsafe fn read(&mut self, buf: &mut [u8]) {}
+  pub unsafe fn read(&mut self, buf: &mut [u8]) {
+    for byte in buf {
+      *byte = block!(self.rx.read()).unwrap();
+    }
+  }
 
   pub unsafe fn write(&mut self, byte: u8) {
-    block!(self.tx.write(byte)).unwrap();
+    block!(self.tx.write(byte));
   }
 }
