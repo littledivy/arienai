@@ -1,6 +1,3 @@
-use alloc::vec;
-use alloc::vec::Vec;
-
 use core::ops::Shl;
 use crypto_bigint::prelude::ArrayEncoding;
 use crypto_bigint::subtle::Choice;
@@ -8,8 +5,9 @@ use crypto_bigint::Integer;
 use crypto_bigint::Limb;
 use crypto_bigint::LimbUInt;
 use crypto_bigint::U4096;
-
+use num_bigint::BigUint;
 use sha2_const::Sha256;
+
 const EM_LEN: usize = (4095 + 7) / 8;
 const EM_BITS: usize = 4095;
 
@@ -198,6 +196,12 @@ fn montgomery(x: &U4096, y: &U4096, m: &U4096, k: LimbUInt, n: usize) -> U4096 {
 
   let mut z = [0 as LimbUInt; (4096 / Limb::BIT_SIZE) * 2];
 
+  // k = 17616413863366944509
+  // n = 64
+  // z = 0 (128)
+  // x = 1 (64)
+  // y = 8860687789152922376 (64)
+  // m = 6151168719874890155 (64)
   let x_data = x.to_uint_array();
   let y_data = y.to_uint_array();
   let m_data = m.to_uint_array();
@@ -205,10 +209,10 @@ fn montgomery(x: &U4096, y: &U4096, m: &U4096, k: LimbUInt, n: usize) -> U4096 {
   let mut c: LimbUInt = 0;
   for i in 0..n {
     let c2 = add_mul_vvw(&mut z[i..n + i], &x_data, y_data[i]);
-   
+
     let t = z[i].wrapping_mul(k);
     let c3 = add_mul_vvw(&mut z[i..n + i], &m_data, t);
-    
+
     let cx = c.wrapping_add(c2);
     let cy = cx.wrapping_add(c3);
     z[n + i] = cy;
@@ -219,10 +223,11 @@ fn montgomery(x: &U4096, y: &U4096, m: &U4096, k: LimbUInt, n: usize) -> U4096 {
       c = 0;
     }
   }
-  
+
   if c == 0 {
     let mut a = [0 as LimbUInt; (4096 / Limb::BIT_SIZE)];
     a.copy_from_slice(&z[n..]);
+
     U4096::from_uint_array(a)
   } else {
     {
@@ -243,24 +248,55 @@ struct MontyReducer {
 // Iteration for Multiplicative Inverses Modulo Prime Powers".
 fn inv_mod_alt(b: LimbUInt) -> LimbUInt {
   assert_ne!(b & 1, 0);
-
-  let mut k0 = 2 - b;
-  let mut t = (b - 1);
+  // -11030582649679118445
+  let mut k0 = 2 - b as i64;
+  // 6151168719874890155
+  let mut t = (b - 1) as i64;
   let mut i = 1;
-  while i < Limb::BIT_SIZE {
+  while i < 64 {
     t = t.wrapping_mul(t);
     k0 = k0.wrapping_mul(t + 1);
 
     i <<= 1;
   }
-  k0 as LimbUInt
+  -k0 as LimbUInt
 }
 
 impl MontyReducer {
-  fn new(n: &U4096) -> Self {
-    let n0inv = inv_mod_alt(n.to_uint_array()[0]);
+  fn new(n: &BigUint) -> Self {
+    // 11030582649679118447
+    let n0inv = inv_mod_alt(n.get_limb(0));
     MontyReducer { n0inv }
   }
+}
+
+const LIMBS: usize = 4096 / Limb::BIT_SIZE;
+
+#[inline(always)]
+pub fn shl_u64(s: U4096) -> U4096 {
+  const n: u64 = 2 * LIMBS as u64 * Limb::BIT_SIZE as u64;
+
+  const bits: u64 = Limb::BIT_SIZE as u64;
+  const digits: usize = (n / bits) as usize;
+  const shift: u8 = (n % bits) as u8;
+
+  let mut limbs = [0 as LimbUInt; LIMBS];
+  limbs.copy_from_slice(&s.to_uint_array()[..]);
+
+  if shift > 0 {
+    let mut carry = 0;
+    let carry_shift = Limb::BIT_SIZE as u8 - shift;
+    for elem in limbs[digits..].iter_mut() {
+      let new_carry = *elem >> carry_shift;
+      *elem = (*elem << shift) | carry;
+      carry = new_carry;
+    }
+    if carry != 0 {
+      limbs[limbs.len() - 1] = carry;
+    }
+  }
+
+  U4096::from_uint_array(limbs)
 }
 
 /// Performs raw RSA decryption with no padding, resulting in a plaintext `BigUint`.
@@ -275,27 +311,45 @@ pub fn decrypt(
     // x, exponent, modulus
     let x = base;
     let y = exp_data;
+    // 0: 11030582649679118447
     let m = modulus;
-    let mr = MontyReducer::new(m);
-    let num_words = 4096 / Limb::BIT_SIZE;
+    let m_bytes = m.to_be_byte_array();
+    let mn = BigUint::from_bytes_be(&m_bytes);
 
-    let mut rr = U4096::from_u8(1u8);
-    rr = (rr.shl(2 * num_words * Limb::BIT_SIZE)).wrapping_rem(m);
+    // n0inv: 17616413863366944509
+    let mr = MontyReducer::new(&mn);
+
+    // 64
+    let num_words: usize = LIMBS as usize;
+    let mut rr = BigUint::from(1u8);
+    rr = (rr.shl(2 * num_words * Limb::BIT_SIZE)) % mn;
+
+    let mut rem_b = rr.to_bytes_be();
+    rem_b.resize(512, 0);
+    let rr = U4096::from_be_byte_array(
+      *crypto_bigint::generic_array::GenericArray::from_slice(&rem_b),
+    );
+    // 0:8860687789152922376
+    // 1:64
 
     let one = U4096::from_u8(1u8);
 
     // powers[i] contains x^i
     let mut powers = [U4096::default(); 1 << 4];
 
+    // 12295575353834661461
     let mut i = 0;
-    powers[i] = montgomery(&one, &rr, &base, mr.n0inv, num_words);
+    powers[i] = montgomery(&one, &rr, &m, mr.n0inv, num_words);
     i += 1;
 
-    powers[i] = montgomery(&x, &rr, &base, mr.n0inv, num_words);
+    // x = 8203905367948014444 (64)
+    // 10628657572930017130
+    powers[i] = montgomery(&x, &rr, &m, mr.n0inv, num_words);
     i += 1;
 
     for idx in 2..1 << 4 {
       let r = montgomery(&powers[idx - 1], &powers[1], m, mr.n0inv, num_words);
+
       powers[i] = r;
       i += 1;
     }
@@ -322,6 +376,7 @@ pub fn decrypt(
           num_words,
         );
         core::mem::swap(&mut z, &mut zz);
+
         yi <<= 4;
         j += 4;
       }

@@ -11,8 +11,7 @@ digest = m.digest()
 fd.write(bytes([1]))
 fd.write(digest)
 
-e = fd.read(1)
-print(e)
-
+sig = fd.read(512)
+print(list(sig))
 
 fd.close()

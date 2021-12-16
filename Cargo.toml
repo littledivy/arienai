@@ -25,6 +25,11 @@ version = "0.3.2"
 default-features = false
 features = ["generic-array"]
 
+[dependencies.num-bigint]
+package = "num-bigint-dig"
+default-features = false
+version = "^0.7"
+
 [dependencies.rand]
 version = "0.8.4"
 default-features = false
