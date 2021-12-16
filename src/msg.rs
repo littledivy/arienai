@@ -23,9 +23,9 @@ macro_rules! repr_u8 {
 repr_u8! {
   #[repr(u8)]
   pub enum Message {
-    Sign = 0x00,
-    Verify = 0x01,
-    GetOwner = 0x02,
-    GetAddress = 0x03,
+    Sign = 0x01,
+    Verify = 0x02,
+    GetOwner = 0x03,
+    GetAddress = 0x04,
   }
 }

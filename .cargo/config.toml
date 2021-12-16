@@ -1,10 +1,11 @@
-[target.thumbv7m-none-eabi]
-runner = "sudo qemu-system-arm -cpu cortex-m3 -serial pty -machine lm3s6965evb -semihosting-config enable=on,target=native -kernel"
-
+[target.riscv32imac-unknown-none-elf]
 rustflags = [
-  "-C", "link-arg=--nmagic",
-  "-C", "link-arg=-Tlink.x"
+  "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-Tlink.x",
 ]
 
 [build]
-target = "thumbv7m-none-eabi"
+target = "riscv32imac-unknown-none-elf"
+
+[test]
+target = "x86_64-unknown-linux-gnu"
